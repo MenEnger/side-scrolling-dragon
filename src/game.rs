@@ -216,23 +216,16 @@ impl Game {
         }
 
         let dragon_row = self.dragon.row();
-        let dragon_sprite = if self.dragon.jumps_used == 2 { '&' } else { '@' };
+        let sprite_top = dragon_row.saturating_sub(2) as isize;
+        let sprite_left = PLAYER_X.saturating_sub(2) as isize;
 
-        // ドラゴンは 1 文字では味気ないので、頭・胴体・しっぽを分けて置く。
-        grid[dragon_row][PLAYER_X] = dragon_sprite;
-
-        if dragon_row > 0 {
-            grid[dragon_row - 1][PLAYER_X] = '^';
-        }
-        if PLAYER_X > 0 {
-            grid[dragon_row][PLAYER_X - 1] = '<';
-        }
-        if PLAYER_X + 1 < WIDTH {
-            grid[dragon_row][PLAYER_X + 1] = '>';
-        }
-        if PLAYER_X + 2 < WIDTH {
-            grid[dragon_row][PLAYER_X + 2] = '~';
-        }
+        // ドラゴンは複数行の AA スプライトとして重ねて描画する。
+        blit_sprite(
+            &mut grid,
+            sprite_top,
+            sprite_left,
+            dragon_sprite(self.dragon.jumps_used),
+        );
 
         let jumps_left = MAX_JUMPS.saturating_sub(self.dragon.jumps_used);
         let mut lines = Vec::with_capacity(HEIGHT + 6);
@@ -310,6 +303,33 @@ fn random_seed() -> u64 {
         .duration_since(UNIX_EPOCH)
         .unwrap_or_default()
         .as_nanos() as u64
+}
+
+/// ジャンプ状態に応じたドラゴンの AA スプライトを返す。
+fn dragon_sprite(jumps_used: u8) -> &'static [&'static str] {
+    match jumps_used {
+        0 => &["  /^\\   ", "<(o )==>", " /_|_\\  "],
+        1 => &[" _/^^\\_ ", "<(o )~>>", "  / \\   "],
+        _ => &["_/^^^^\\_", "<(O )**>", "  / \\   "],
+    }
+}
+
+/// 文字グリッドの指定位置に、空白を透過扱いでスプライトを描き込む。
+fn blit_sprite(grid: &mut [Vec<char>], top: isize, left: isize, sprite: &[&str]) {
+    for (dy, row) in sprite.iter().enumerate() {
+        let y = top + dy as isize;
+        if !(0..grid.len() as isize).contains(&y) {
+            continue;
+        }
+
+        for (dx, ch) in row.chars().enumerate() {
+            let x = left + dx as isize;
+            if ch == ' ' || !(0..WIDTH as isize).contains(&x) {
+                continue;
+            }
+            grid[y as usize][x as usize] = ch;
+        }
+    }
 }
 
 /// スコアに応じて障害物の高さ分布を決める。
@@ -442,5 +462,14 @@ mod tests {
 
         assert!((1.2..=1.9).contains(&short_gap));
         assert!((1.65..=2.35).contains(&tall_gap));
+    }
+
+    /// 2 段ジャンプ時は羽を広げたリッチなスプライトに切り替わる。
+    #[test]
+    fn double_jump_uses_richer_sprite() {
+        let sprite = dragon_sprite(2);
+
+        assert_eq!(sprite[0], "_/^^^^\\_");
+        assert_eq!(sprite[1], "<(O )**>");
     }
 }

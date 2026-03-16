@@ -4,7 +4,7 @@ use std::time::{Duration, Instant};
 
 use crossterm::cursor::{Hide, MoveTo, Show};
 use crossterm::event::{self, Event, KeyCode, KeyEventKind};
-use crossterm::style::Print;
+use crossterm::style::{Color, Print, ResetColor, SetForegroundColor};
 use crossterm::terminal::{
     Clear, ClearType, EnterAlternateScreen, LeaveAlternateScreen, disable_raw_mode,
     enable_raw_mode,
@@ -71,10 +71,27 @@ fn draw(stdout: &mut Stdout, frame: &[String]) -> io::Result<()> {
     stdout.queue(Clear(ClearType::All))?;
     for (row, line) in frame.iter().enumerate() {
         stdout.queue(MoveTo(0, row as u16))?;
-        stdout.queue(Print(line))?;
+        for ch in line.chars() {
+            if is_flame_char(ch) {
+                stdout.queue(SetForegroundColor(Color::Rgb {
+                    r: 255,
+                    g: 140,
+                    b: 40,
+                }))?;
+                stdout.queue(Print(ch))?;
+                stdout.queue(ResetColor)?;
+            } else {
+                stdout.queue(Print(ch))?;
+            }
+        }
     }
     stdout.flush()?;
     Ok(())
+}
+
+/// 炎として描画したい文字かどうかを判定する。
+fn is_flame_char(ch: char) -> bool {
+    ch == '*'
 }
 
 /// ゲームループを起動し、入力・更新・描画を一定間隔で繰り返す。
